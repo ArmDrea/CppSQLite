@@ -20,6 +20,16 @@
 #define CPPSQLITE_ATTR_CONST
 #endif
 
+#ifndef CPPSQLITE_CUSTOMIZED_VERSION
+#define CPPSQLITE_CUSTOMIZED_VERSION 1
+#endif
+
+#if defined(__cpp_user_defined_literals)
+#define CPPSQLITE_NOEXCEPT noexcept
+#else
+#define CPPSQLITE_NOEXCEPT
+#endif
+
 namespace detail {
 /**
  * RAII class for managing memory allocated by sqlite
@@ -73,7 +83,7 @@ class CppSQLite3Exception : public std::exception {
 
     const char *errorMessage() const { return mpszErrMess; }
 
-    const char *what() const noexcept override { return mpszErrMess; }
+    const char *what() const CPPSQLITE_NOEXCEPT override { return mpszErrMess; }
 
     static const char *errorCodeAsString(int nErrCode) CPPSQLITE_ATTR_CONST;
 
@@ -174,6 +184,8 @@ class CppSQLite3Query {
     void nextRow();
 
     void finalize();
+
+    bool valid() const;
 
   private:
     void checkVM() const;
@@ -277,10 +289,14 @@ class CppSQLite3DB {
     virtual ~CppSQLite3DB();
 
     void open(const char *szFile);
+#if SQLITE_VERSION_NUMBER >= 3005000
+    void open(const char *szFile, int flags, const char *szVfsName);
+#endif
 
     void close();
 
     bool tableExists(const char *szTable);
+    bool columnExists(const char* szTable, const char *szColumn);
 
     int execDML(const char *szSQL);
 

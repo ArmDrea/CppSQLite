@@ -559,6 +559,10 @@ void CppSQLite3Query::finalize() {
     }
 }
 
+bool CppSQLite3Query::valid() const {
+    return mpVM != nullptr;
+}
+
 void CppSQLite3Query::checkVM() const {
     if (mpVM == nullptr) {
         throw CppSQLite3Exception(
@@ -981,9 +985,27 @@ void CppSQLite3DB::open(const char *szFile) {
     setBusyTimeout(mnBusyTimeoutMs);
 }
 
+
+#if SQLITE_VERSION_NUMBER >= 3005000
+void CppSQLite3DB::open(const char *szFile, int flags, const char *szVfsName) {
+    int nRet = sqlite3_open_v2(szFile, &mpDB, flags, szVfsName);
+
+    if (nRet != SQLITE_OK) {
+        const char* szError = sqlite3_errmsg(mpDB);
+        throw CppSQLite3Exception(nRet, szError, DONT_DELETE_MSG);
+    }
+
+    setBusyTimeout(mnBusyTimeoutMs);
+}
+#endif
+
 void CppSQLite3DB::close() {
     if (mpDB) {
+#if SQLITE_VERSION_NUMBER >= 3007014
+        sqlite3_close_v2(mpDB);
+#else
         sqlite3_close(mpDB);
+#endif
         mpDB = nullptr;
     }
 }
@@ -1002,6 +1024,23 @@ bool CppSQLite3DB::tableExists(const char *szTable) {
         szTable);
     int nRet = execScalar(sql);
     return (nRet > 0);
+}
+
+
+bool CppSQLite3DB::columnExists(const char *szTable, const char *szColumn) {
+    CppSQLite3Buffer sql;
+    sql.format("PRAGMA table_info(%Q)", szTable);
+
+    CppSQLite3Query record = execQuery(sql);
+    while (!record.eof()) {
+        const char* colName = record.getStringField("name");
+        if (stricmp(colName, szColumn) == 0) {
+            return true;
+        }
+        record.nextRow();
+    }
+
+    return false;
 }
 
 int CppSQLite3DB::execDML(const char *szSQL) {
